@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with odmpy.  If not, see <http://www.gnu.org/licenses/>.
 #
-import sys
 
 from setuptools import setup  # type: ignore[import]
 
@@ -29,7 +28,6 @@ __long_description__ = """
 """
 
 install_requires = [
-    "setuptools>=69.5.1",
     "requests>=2.28.0",
     "eyed3>=0.9.7",
     "mutagen>=1.46.0",

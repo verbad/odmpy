@@ -645,11 +645,14 @@ def process_ebook_loan(
                 with open(asset_file_path, "wb") as f_out:
                     f_out.write(res.content)
 
-        # download image to asset dir from decoded HTML
-        # e.g. '<img src="***_003_r1.jpg" alt="003" class="imgepub" data-loc="60">'
-        if soup:
-            image_tag = soup.find("img", attrs={"src": True})
-            if image_tag and isinstance(image_tag, Tag):
+        # download images to the same asset dir, fix soup image src
+        # e.g. '<img src="../Image/***_003_r1.jpg" alt="003" class="imgepub" data-loc="60">'
+        # download into "Text/***_003_r1.jpg" and point to filename "***_003_r1.jpg"
+        if soup and media_type in ("application/xhtml+xml", "text/html"):
+            image_tags = soup.find_all("img", attrs={"src": True})
+            for image_tag in image_tags:
+                if not isinstance(image_tag, Tag):
+                    continue
                 image_url = urlparse(
                     urljoin(parsed_entry_url.geturl(), image_tag["src"])
                 )
@@ -661,6 +664,10 @@ def process_ebook_loan(
                     res = libby_client.make_request(download_url, return_res=True)
                     with open(image_file_path, "wb") as f_out:
                         f_out.write(res.content)
+                    image_tag["src"] = image_file_name
+            # overwrite the file with the updated soup
+            with open(asset_file_path, "w", encoding="utf-8") as f_out:
+                f_out.write(str(soup))
 
         if soup:
             # try to min. soup searches where possible

@@ -136,9 +136,9 @@ def parse_part_path(title: str, part_path: str) -> ChapterMarker:
     return ChapterMarker(
         title=title,
         part_name=mobj.group("part_name"),
-        start_second=float(mobj.group("second_stamp"))
-        if mobj.group("second_stamp")
-        else 0,
+        start_second=(
+            float(mobj.group("second_stamp")) if mobj.group("second_stamp") else 0
+        ),
         end_second=0,
     )
 

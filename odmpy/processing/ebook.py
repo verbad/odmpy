@@ -421,18 +421,15 @@ def process_ebook_loan(
             json.dump(openbook, f, indent=2)
 
     # old rosters: {"group": "title-content", "entries": [{"url": "http://..."}]}
-    # now just generate title_contents from openbook
-    title_contents = {
-        "group": "title-content",
-        "entries": [
-            {
-                "url": openbook["download_base"] + item["path"],
-                "mediaType": item["media-type"],
-                "spinePosition": item["-odread-spine-position"],
-            }
-            for item in openbook["spine"]
-        ],
-    }
+    # now just generate title_content entries from openbook
+    title_contents = [
+        {
+            "url": openbook["download_base"] + item["path"],
+            "mediaType": item["media-type"],
+            "spinePosition": item["-odread-spine-position"],
+        }
+        for item in openbook["spine"]
+    ]
 
     headers = libby_client.default_headers()
     headers["Accept"] = "*/*"
@@ -470,12 +467,11 @@ def process_ebook_loan(
     title_content_entries = list(
         filter(
             lambda e: _filter_content(e, media_info, toc_pages),
-            title_contents["entries"],
+            title_contents,
         )
     )
-    # Ignoring mypy error below because of https://github.com/python/mypy/issues/9372
     title_content_entries = sorted(
-        title_content_entries, key=cmp_to_key(_sort_title_contents)  # type: ignore[misc]
+        title_content_entries, key=cmp_to_key(_sort_title_contents)
     )
     progress_bar = tqdm(title_content_entries, disable=args.hide_progress)
     has_ncx = False
@@ -515,9 +511,11 @@ def process_ebook_loan(
             has_ncx = True
         manifest_entry = {
             "href": parsed_entry_url.path[1:],
-            "id": "ncx"
-            if media_type == "application/x-dtbncx+xml"
-            else _sanitise_opf_id(parsed_entry_url.path[1:]),
+            "id": (
+                "ncx"
+                if media_type == "application/x-dtbncx+xml"
+                else _sanitise_opf_id(parsed_entry_url.path[1:])
+            ),
             "media-type": media_type,
         }
 
@@ -646,24 +644,23 @@ def process_ebook_loan(
             else:
                 with open(asset_file_path, "wb") as f_out:
                     f_out.write(res.content)
-        
+
         # download image to asset dir from decoded HTML
         # e.g. '<img src="***_003_r1.jpg" alt="003" class="imgepub" data-loc="60">'
         if soup:
-            image_url = soup.find("img", attrs={"src": True})
-            if image_url:
-                image_url = urljoin(parsed_entry_url.geturl(), image_url["src"])
-                image_url = urlparse(image_url)
-                image_url = image_url.geturl()
-                # ready to download
-                image_file_name = os.path.basename(image_url)
+            image_tag = soup.find("img", attrs={"src": True})
+            if image_tag and isinstance(image_tag, Tag):
+                image_url = urlparse(
+                    urljoin(parsed_entry_url.geturl(), image_tag["src"])
+                )
+                download_url = image_url.geturl()
+                image_file_name = os.path.basename(download_url)
                 image_file_path = asset_folder.joinpath(image_file_name)
                 if not image_file_path.exists():
-                    logger.info(f"Downloading {image_url} to {image_file_path}")
-                    res = libby_client.make_request(image_url, return_res=True)
+                    logger.info(f"Downloading {download_url} to {image_file_path}")
+                    res = libby_client.make_request(download_url, return_res=True)
                     with open(image_file_path, "wb") as f_out:
                         f_out.write(res.content)
-
 
         if soup:
             # try to min. soup searches where possible
@@ -776,9 +773,11 @@ def process_ebook_loan(
                 extract_isbn(
                     media_info["formats"],
                     format_types=[
-                        LibbyFormats.MagazineOverDrive
-                        if loan["type"]["id"] == LibbyMediaTypes.Magazine
-                        else LibbyFormats.EBookOverdrive
+                        (
+                            LibbyFormats.MagazineOverDrive
+                            if loan["type"]["id"] == LibbyMediaTypes.Magazine
+                            else LibbyFormats.EBookOverdrive
+                        )
                     ],
                 )
                 or media_info["id"]
@@ -812,9 +811,11 @@ def process_ebook_loan(
     package = build_opf_package(
         media_info,
         version=epub_version,
-        loan_format=LibbyFormats.MagazineOverDrive
-        if loan["type"]["id"] == LibbyMediaTypes.Magazine
-        else LibbyFormats.EBookOverdrive,
+        loan_format=(
+            LibbyFormats.MagazineOverDrive
+            if loan["type"]["id"] == LibbyMediaTypes.Magazine
+            else LibbyFormats.EBookOverdrive
+        ),
     )
     if args.generate_opf:
         # save opf before the manifest and spine elements get added

@@ -125,9 +125,11 @@ def generate_names(
         # create book folder with just the title and first author
         book_folder_name = args.book_folder_format % {
             "Title": sanitize_path(title, exclude_chars=args.remove_from_paths),
-            "Author": sanitize_path(authors[0], exclude_chars=args.remove_from_paths)
-            if authors
-            else "",
+            "Author": (
+                sanitize_path(authors[0], exclude_chars=args.remove_from_paths)
+                if authors
+                else ""
+            ),
             "Series": sanitize_path(series or "", exclude_chars=args.remove_from_paths),
             "ID": sanitize_path(title_id, exclude_chars=args.remove_from_paths),
             "ReadingOrder": sanitize_path(
@@ -407,9 +409,9 @@ def merge_into_mp3(
             "-vcodec",
             "copy",
             "-b:a",
-            f"{audio_bitrate}k"
-            if audio_bitrate
-            else "64k",  # explicitly set audio bitrate
+            (
+                f"{audio_bitrate}k" if audio_bitrate else "64k"
+            ),  # explicitly set audio bitrate
             "-f",
             "mp3",
             str(temp_book_filename),
@@ -474,9 +476,9 @@ def convert_to_m4b(
             "-c:a",
             merge_codec,
             "-b:a",
-            f"{audio_bitrate}k"
-            if audio_bitrate
-            else "64k",  # explicitly set audio bitrate
+            (
+                f"{audio_bitrate}k" if audio_bitrate else "64k"
+            ),  # explicitly set audio bitrate
         ]
     )
     if cover_filename.exists():

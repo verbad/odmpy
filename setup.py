@@ -29,6 +29,7 @@ __long_description__ = """
 """
 
 install_requires = [
+    "setuptools>=69.5.1",
     "requests>=2.28.0",
     "eyed3>=0.9.7",
     "mutagen>=1.46.0",
@@ -38,8 +39,6 @@ install_requires = [
     "lxml>=4.9.0",
     "iso639-lang>=2.1.0",
 ]
-if sys.version_info < (3, 8):
-    install_requires.append("typing_extensions")
 
 setup(
     name="odmpy",
@@ -53,7 +52,7 @@ setup(
             "odmpy = odmpy.__main__:main",
         ]
     },
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=install_requires,
     include_package_data=True,
     platforms="any",
@@ -70,5 +69,6 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
 )

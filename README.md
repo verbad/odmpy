@@ -6,7 +6,7 @@ odmpy also has useful features for audiobooks such as adding of chapters metadat
 
 Works on Linux, macOS, and Windows.
 
-Requires Python >= 3.7.
+Requires Python >= 3.8.
 
 ![Screenshot](https://user-images.githubusercontent.com/104607/222746903-0089bea5-ba3f-4eef-8e14-b4870a5bbb27.png)
 

@@ -372,14 +372,15 @@ def process_odm(
             logger.debug(f"Saved license file {license_file}")
 
         except HTTPError as he:
-            if he.response.status_code == 404:
-                # odm file has expired
-                logger.error(
-                    f'The loan file "{args.odm_file}" has expired. Please download again.'
-                )
-            else:
-                logger.error(he.response.content)
-            raise OdmpyRuntimeError("HTTP Error while downloading license.")
+            if he.response is not None:
+                if he.response.status_code == 404:
+                    # odm file has expired
+                    logger.error(
+                        f'The loan file "{args.odm_file}" has expired. Please download again.'
+                    )
+                else:
+                    logger.error(he.response.content)
+                raise OdmpyRuntimeError("HTTP Error while downloading license.")
         except ConnectionError as ce:
             logger.error(f"ConnectionError: {str(ce)}")
             raise OdmpyRuntimeError("Connection Error while downloading license.")
@@ -430,9 +431,11 @@ def process_odm(
                         "User-Agent": UA,
                         "ClientID": license_client_id,
                         "License": lic_file_contents,
-                        "Range": f"bytes={already_downloaded_len}-"
-                        if already_downloaded_len
-                        else None,
+                        "Range": (
+                            f"bytes={already_downloaded_len}-"
+                            if already_downloaded_len
+                            else None
+                        ),
                     },
                     timeout=args.timeout,
                     stream=True,
@@ -461,8 +464,9 @@ def process_odm(
                 )
 
             except HTTPError as he:
-                logger.error(f"HTTPError: {str(he)}")
-                logger.debug(he.response.content)
+                if he.response is not None:
+                    logger.error(f"HTTPError: {str(he)}")
+                    logger.debug(he.response.content)
                 raise OdmpyRuntimeError("HTTP Error while downloading part file.")
 
             except ConnectionError as ce:
@@ -789,15 +793,19 @@ def process_odm(
                 create_opf(
                     media_info,
                     cover_filename if keep_cover else None,
-                    file_tracks
-                    if not args.merge_output
-                    else [
-                        {
-                            "file": book_filename
-                            if args.merge_format == "mp3"
-                            else book_m4b_filename
-                        }
-                    ],
+                    (
+                        file_tracks
+                        if not args.merge_output
+                        else [
+                            {
+                                "file": (
+                                    book_filename
+                                    if args.merge_format == "mp3"
+                                    else book_m4b_filename
+                                )
+                            }
+                        ]
+                    ),
                     opf_file_path,
                     logger,
                 )
@@ -832,11 +840,12 @@ def process_odm_return(args: argparse.Namespace, logger: logging.Logger) -> None
         early_return_res.raise_for_status()
         logger.info(f"Loan returned successfully: {args.odm_file}")
     except HTTPError as he:
-        if he.response.status_code == 403:
-            logger.warning("Loan is probably already returned.")
-            return
-        logger.error(f"HTTPError: {str(he)}")
-        logger.debug(he.response.content)
+        if he.response is not None:
+            if he.response.status_code == 403:
+                logger.warning("Loan is probably already returned.")
+                return
+            logger.error(f"HTTPError: {str(he)}")
+            logger.debug(he.response.content)
         raise OdmpyRuntimeError(f"HTTP error returning odm {args.odm_file, }")
     except ConnectionError as ce:
         logger.error(f"ConnectionError: {str(ce)}")

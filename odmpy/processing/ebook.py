@@ -369,7 +369,6 @@ def process_ebook_loan(
     loan: Dict,
     cover_path: Optional[Path],
     openbook: Dict,
-    rosters: List[Dict],
     libby_client: LibbyClient,
     args: argparse.Namespace,
     logger: logging.Logger,
@@ -380,7 +379,6 @@ def process_ebook_loan(
     :param loan:
     :param cover_path:
     :param openbook:
-    :param rosters:
     :param libby_client:
     :param args:
     :param logger:
@@ -419,15 +417,20 @@ def process_ebook_loan(
         with book_folder.joinpath("loan.json").open("w", encoding="utf-8") as f:
             json.dump(loan, f, indent=2)
 
-        with book_folder.joinpath("rosters.json").open("w", encoding="utf-8") as f:
-            json.dump(rosters, f, indent=2)
-
         with book_folder.joinpath("openbook.json").open("w", encoding="utf-8") as f:
             json.dump(openbook, f, indent=2)
 
-    title_contents: Dict = next(
-        iter([r for r in rosters if r["group"] == "title-content"]), {}
-    )
+    # old rosters: {"group": "title-content", "entries": [{"url": "http://..."}]}
+    # now just generate title_content entries from openbook
+    title_contents = [
+        {
+            "url": openbook["download_base"] + item["path"],
+            "mediaType": item["media-type"],
+            "spinePosition": item["-odread-spine-position"],
+        }
+        for item in openbook["spine"]
+    ]
+
     headers = libby_client.default_headers()
     headers["Accept"] = "*/*"
     contents_re = re.compile(r"parent\.__bif_cfc0\(self,'(?P<base64_text>.+)'\)")
@@ -464,12 +467,11 @@ def process_ebook_loan(
     title_content_entries = list(
         filter(
             lambda e: _filter_content(e, media_info, toc_pages),
-            title_contents["entries"],
+            title_contents,
         )
     )
-    # Ignoring mypy error below because of https://github.com/python/mypy/issues/9372
     title_content_entries = sorted(
-        title_content_entries, key=cmp_to_key(_sort_title_contents)  # type: ignore[misc]
+        title_content_entries, key=cmp_to_key(_sort_title_contents)
     )
     progress_bar = tqdm(title_content_entries, disable=args.hide_progress)
     has_ncx = False
@@ -509,9 +511,11 @@ def process_ebook_loan(
             has_ncx = True
         manifest_entry = {
             "href": parsed_entry_url.path[1:],
-            "id": "ncx"
-            if media_type == "application/x-dtbncx+xml"
-            else _sanitise_opf_id(parsed_entry_url.path[1:]),
+            "id": (
+                "ncx"
+                if media_type == "application/x-dtbncx+xml"
+                else _sanitise_opf_id(parsed_entry_url.path[1:])
+            ),
             "media-type": media_type,
         }
 
@@ -641,6 +645,31 @@ def process_ebook_loan(
                 with open(asset_file_path, "wb") as f_out:
                     f_out.write(res.content)
 
+        # HACK: download css and images to the same asset dir, fix soup
+        # e.g. '<img src="../Image/***_003_r1.jpg" alt="003" class="imgepub" data-loc="60">'
+        # download into "Text/***_003_r1.jpg" and point to filename "***_003_r1.jpg"
+        if soup and media_type in ("application/xhtml+xml", "text/html"):
+            for tag, attrs, tag_target in [
+                ("img", {"src": True}, "src"),
+                ("link", {"rel": "stylesheet"}, "href"),
+            ]:
+                for ele in soup.find_all(tag, attrs=attrs):  # type: ignore[arg-type]
+                    download_url = urlparse(
+                        urljoin(parsed_entry_url.geturl(), ele[tag_target])
+                    ).geturl()
+                    filename = os.path.basename(download_url)
+                    ele[tag_target] = filename
+
+                    file_path = asset_folder.joinpath(filename)
+                    if not file_path.exists():
+                        logger.info(f"Downloading {download_url} to {file_path}")
+                        res = libby_client.make_request(download_url, return_res=True)
+                        with open(file_path, "wb") as f_out:
+                            f_out.write(res.content)
+            # overwrite the file with the updated soup
+            with open(asset_file_path, "w", encoding="utf-8") as f_out:
+                f_out.write(str(soup))
+
         if soup:
             # try to min. soup searches where possible
             if (
@@ -752,9 +781,11 @@ def process_ebook_loan(
                 extract_isbn(
                     media_info["formats"],
                     format_types=[
-                        LibbyFormats.MagazineOverDrive
-                        if loan["type"]["id"] == LibbyMediaTypes.Magazine
-                        else LibbyFormats.EBookOverdrive
+                        (
+                            LibbyFormats.MagazineOverDrive
+                            if loan["type"]["id"] == LibbyMediaTypes.Magazine
+                            else LibbyFormats.EBookOverdrive
+                        )
                     ],
                 )
                 or media_info["id"]
@@ -788,9 +819,11 @@ def process_ebook_loan(
     package = build_opf_package(
         media_info,
         version=epub_version,
-        loan_format=LibbyFormats.MagazineOverDrive
-        if loan["type"]["id"] == LibbyMediaTypes.Magazine
-        else LibbyFormats.EBookOverdrive,
+        loan_format=(
+            LibbyFormats.MagazineOverDrive
+            if loan["type"]["id"] == LibbyMediaTypes.Magazine
+            else LibbyFormats.EBookOverdrive
+        ),
     )
     if args.generate_opf:
         # save opf before the manifest and spine elements get added
@@ -861,7 +894,7 @@ def process_ebook_loan(
 
     # Ignoring mypy error below because of https://github.com/python/mypy/issues/9372
     spine_entries = sorted(
-        spine_entries, key=cmp_to_key(lambda a, b: _sort_spine_entries(a, b, toc_pages))  # type: ignore[misc]
+        spine_entries, key=cmp_to_key(lambda a, b: _sort_spine_entries(a, b, toc_pages))  # type: ignore[misc,arg-type]
     )
     for spine_idx, entry in enumerate(spine_entries):
         if (
@@ -955,7 +988,6 @@ def process_ebook_loan(
             "media.json",
             "openbook.json",
             "loan.json",
-            "rosters.json",
         ):
             target = book_folder.joinpath(file_name)
             if target.exists():

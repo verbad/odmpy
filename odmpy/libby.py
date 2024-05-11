@@ -136,9 +136,9 @@ def parse_part_path(title: str, part_path: str) -> ChapterMarker:
     return ChapterMarker(
         title=title,
         part_name=mobj.group("part_name"),
-        start_second=float(mobj.group("second_stamp"))
-        if mobj.group("second_stamp")
-        else 0,
+        start_second=(
+            float(mobj.group("second_stamp")) if mobj.group("second_stamp") else 0
+        ),
         end_second=0,
     )
 
@@ -812,16 +812,26 @@ class LibbyClient(object):
         meta = self.open_loan(loan_type, card_id, title_id)
         download_base: str = meta["urls"]["web"]
 
-        # Sets a needed cookie
+        # Sets a needed cookie and parse the redirect HTML for meta.
         web_url = download_base + "?" + meta["message"]
-        _ = self.make_request(
+        html = self.make_request(
             web_url,
             headers={"Accept": "*/*"},
-            method="HEAD",
+            method="GET",
             authenticated=False,
             return_res=True,
         )
-        return download_base, meta
+        # audio [nav/toc, spine], ebook [nav/toc, spine, manifest]
+        # both in window.bData
+        regex = re.compile(r"window\.bData\s*=\s*({.*});")
+        match = regex.search(html.text)
+        if not match:
+            raise ValueError(f"Failed to parse window.bData for book info: {web_url}")
+        openbook = json.loads(match.group(1))
+
+        # set download_base for ebook
+        openbook["download_base"] = download_base
+        return download_base, openbook
 
     def process_audiobook(
         self, loan: Dict
@@ -832,24 +842,19 @@ class LibbyClient(object):
         :param loan:
         :return:
         """
-        download_base, meta = self.prepare_loan(loan)
-        # contains nav/toc and spine
-        openbook = self.make_request(meta["urls"]["openbook"])
+        download_base, openbook = self.prepare_loan(loan)
         toc = parse_toc(download_base, openbook["nav"]["toc"], openbook["spine"])
         return openbook, toc
 
-    def process_ebook(self, loan: Dict) -> Tuple[str, Dict, List[Dict]]:
+    def process_ebook(self, loan: Dict) -> Tuple[str, Dict]:
         """
         Returns the data needed to download an ebook directly.
 
         :param loan:
         :return:
         """
-        download_base, meta = self.prepare_loan(loan)
-        # contains nav/toc and spine, manifest
-        openbook = self.make_request(meta["urls"]["openbook"])
-        rosters: List[Dict] = self.make_request(meta["urls"]["rosters"])
-        return download_base, openbook, rosters
+        download_base, openbook = self.prepare_loan(loan)
+        return download_base, openbook
 
     def return_title(self, title_id: str, card_id: str) -> None:
         """

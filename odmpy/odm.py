@@ -377,11 +377,10 @@ def extract_loan_file(
         format_id = LibbyFormats.EBookOverdrive
 
     openbook: Dict = {}
-    rosters: List[Dict] = []
     # pre-extract openbook first so that we can use it to create the book folder
     # with the creator names (needed to place the cover.jpg download)
     if format_id in (LibbyFormats.EBookOverdrive, LibbyFormats.MagazineOverDrive):
-        _, openbook, rosters = libby_client.process_ebook(selected_loan)
+        _, openbook = libby_client.process_ebook(selected_loan)
 
     cover_path = None
     if format_id in (
@@ -395,9 +394,7 @@ def extract_loan_file(
         file_ext = (
             "acsm"
             if format_id in (LibbyFormats.EBookEPubAdobe, LibbyFormats.EBookPDFAdobe)
-            else "pdf"
-            if format_id == LibbyFormats.EBookPDFOpen
-            else "epub"
+            else "pdf" if format_id == LibbyFormats.EBookPDFOpen else "epub"
         )
         book_folder, book_file_name = generate_names(
             title=selected_loan["title"],
@@ -443,7 +440,6 @@ def extract_loan_file(
                 loan=selected_loan,
                 cover_path=cover_path,
                 openbook=openbook,
-                rosters=rosters,
                 libby_client=libby_client,
                 args=args,
                 logger=logger,
@@ -1030,18 +1026,26 @@ def run(custom_args: Optional[List[str]] = None, be_quiet: bool = False) -> None
                     "%s: %-55s  %s %-25s  \n    * %s  %s%s",
                     colored(f"{index:2d}", attrs=["bold"]),
                     colored(loan["title"], attrs=["bold"]),
-                    "📰"
-                    if args.include_magazines
-                    and libby_client.is_downloadable_magazine_loan(loan)
-                    else "📕"
-                    if args.include_ebooks
-                    and libby_client.is_downloadable_ebook_loan(loan)
-                    else "🎧"
-                    if args.include_ebooks or args.include_magazines
-                    else "",
-                    loan["firstCreatorName"]
-                    if loan.get("firstCreatorName")
-                    else loan.get("edition", ""),
+                    (
+                        "📰"
+                        if args.include_magazines
+                        and libby_client.is_downloadable_magazine_loan(loan)
+                        else (
+                            "📕"
+                            if args.include_ebooks
+                            and libby_client.is_downloadable_ebook_loan(loan)
+                            else (
+                                "🎧"
+                                if args.include_ebooks or args.include_magazines
+                                else ""
+                            )
+                        )
+                    ),
+                    (
+                        loan["firstCreatorName"]
+                        if loan.get("firstCreatorName")
+                        else loan.get("edition", "")
+                    ),
                     f"Expires: {colored(f'{expiry_date:%Y-%m-%d}','blue' if libby_client.is_renewable(loan) else None)}",
                     next(
                         iter(
@@ -1052,13 +1056,15 @@ def run(custom_args: Optional[List[str]] = None, be_quiet: bool = False) -> None
                             ]
                         )
                     ),
-                    ""
-                    if not libby_client.is_renewable(loan)
-                    else (
-                        f'\n    * {loan.get("availableCopies", 0)} '
-                        f'{ps(loan.get("availableCopies", 0), "copy", "copies")} available'
-                    )
-                    + (f" (hold placed: {hold_date:%Y-%m-%d})" if hold else ""),
+                    (
+                        ""
+                        if not libby_client.is_renewable(loan)
+                        else (
+                            f'\n    * {loan.get("availableCopies", 0)} '
+                            f'{ps(loan.get("availableCopies", 0), "copy", "copies")} available'
+                        )
+                        + (f" (hold placed: {hold_date:%Y-%m-%d})" if hold else "")
+                    ),
                 )
             loan_choices: List[str] = []
 

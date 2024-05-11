@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with odmpy.  If not, see <http://www.gnu.org/licenses/>.
 #
-import sys
 
 from setuptools import setup  # type: ignore[import]
 
@@ -38,8 +37,6 @@ install_requires = [
     "lxml>=4.9.0",
     "iso639-lang>=2.1.0",
 ]
-if sys.version_info < (3, 8):
-    install_requires.append("typing_extensions")
 
 setup(
     name="odmpy",
@@ -53,7 +50,7 @@ setup(
             "odmpy = odmpy.__main__:main",
         ]
     },
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=install_requires,
     include_package_data=True,
     platforms="any",
@@ -70,5 +67,6 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
 )

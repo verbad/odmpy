@@ -214,9 +214,11 @@ def process_audiobook_loan(
                     part_download_url,
                     headers={
                         "User-Agent": USER_AGENT,
-                        "Range": f"bytes={already_downloaded_len}-"
-                        if already_downloaded_len
-                        else None,
+                        "Range": (
+                            f"bytes={already_downloaded_len}-"
+                            if already_downloaded_len
+                            else None
+                        ),
                     },
                     timeout=args.timeout,
                     stream=True,
@@ -245,8 +247,9 @@ def process_audiobook_loan(
                 )
 
             except HTTPError as he:
-                logger.error(f"HTTPError: {str(he)}")
-                logger.debug(he.response.content)
+                if he.response is not None:
+                    logger.error(f"HTTPError: {str(he)}")
+                    logger.debug(he.response.content)
                 raise OdmpyRuntimeError("HTTP Error while downloading part file.")
 
             except ConnectionError as ce:
@@ -477,15 +480,19 @@ def process_audiobook_loan(
             create_opf(
                 media_info,
                 cover_filename if keep_cover else None,
-                file_tracks
-                if not args.merge_output
-                else [
-                    {
-                        "file": book_filename
-                        if args.merge_format == "mp3"
-                        else book_m4b_filename
-                    }
-                ],
+                (
+                    file_tracks
+                    if not args.merge_output
+                    else [
+                        {
+                            "file": (
+                                book_filename
+                                if args.merge_format == "mp3"
+                                else book_m4b_filename
+                            )
+                        }
+                    ]
+                ),
                 opf_file_path,
                 logger,
             )

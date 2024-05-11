@@ -14,9 +14,11 @@ class UtilsTests(unittest.TestCase):
     def test_sanitize_path(self):
         self.assertEqual(
             utils.sanitize_path(r'a<b>c:d"e/f\g|h?i*j_a<b>c:d"e/f\g|h?i*j', ""),
-            "abcdefghij_abcdefghij"
-            if is_windows
-            else r'a<b>c:d"ef\g|h?i*j_a<b>c:d"ef\g|h?i*j',
+            (
+                "abcdefghij_abcdefghij"
+                if is_windows
+                else r'a<b>c:d"ef\g|h?i*j_a<b>c:d"ef\g|h?i*j'
+            ),
         )
         self.assertEqual(
             utils.sanitize_path(r'a<b>c:d"e/f\g|h?i*j'),
